@@ -14,12 +14,14 @@ import re
 import shlex
 import sys
 
+import tomllib
+
 from datetime import timedelta
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Type
 
-from setuptools import find_packages  # type:ignore
+from setuptools import find_packages
 
 import mutatest
 
@@ -30,7 +32,8 @@ from mutatest.run import Config, MutantTrialResult
 LOGGER = logging.getLogger(__name__)
 FORMAT = "%(asctime)s: %(message)s"
 DEBUG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
+PYPROJECT_FILE = Path("pyproject.toml")
+PYPROJECT_CONTENTS = tomllib.loads(PYPROJECT_FILE.read_text())
 
 class SettingsFile(NamedTuple):
     """Container for settings file in ini or cfg parsing format."""
@@ -378,9 +381,9 @@ def cli_epilog() -> str:
     """
     ).format_map(
         {
-            "version": mutatest.__version__,
+            "version": PYPROJECT_CONTENTS["project"]["version"],
             "license": mutatest.__license__,
-            "url": mutatest.__uri__,
+            "url": PYPROJECT_CONTENTS["project"]["urls"]["Homepage"],
             "copyright": mutatest.__copyright__,
         }
     )
