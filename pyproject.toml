@@ -46,7 +46,7 @@ Repository = "https://github.com/vaibhavkarve/mutatest"
 Homepage = "https://github.com/vaibhavkarve/mutatest"
 
 [project.scripts]
-cli = "mutatest.cli:cli_main"
+mutatest = "mutatest.cli:cli_main"
 
 
 [dependency-groups]
