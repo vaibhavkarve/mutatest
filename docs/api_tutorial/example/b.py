@@ -1,5 +1,4 @@
-"""Example B.
-"""
+"""Example B."""
 
 
 def is_match(a, b):

@@ -12,28 +12,17 @@ The ``LocIndex`` is a location index within a given Abstract Syntax Tree (AST) t
 The ``MutateAST`` class walks the AST of a given source file to identify all of the locations,
 and optionally create the mutation at that node. These are implemented in the ``Genome`` object.
 
-``MutateAST`` is constructed from ``MutateBase`` and the appropriate mixin class - either
-``ConstantMixin`` for Python 3.8, or ``NameConstantMixin`` for Python 3.7.
+``MutateAST`` is constructed from ``MutateBase`` and `ConstantAST``.
 """
+
 import ast
 import logging
-import sys
-
 from pathlib import Path
 
 ####################################################################################################
 # AST TRANSFORMERS
 ####################################################################################################
-from typing import Any, Dict, List, NamedTuple, Optional, Set, Type, Union
-
-
-try:
-    # Python 3.8
-    from typing import Protocol
-except ImportError:
-    # Python 3.7
-    from typing_extensions import Protocol  # type: ignore
-
+from typing import Any, NamedTuple, Protocol
 
 LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +37,7 @@ CATEGORIES = {
     "CompareIs": "cs",
     "If": "if",
     "Index": "ix",
-    "NameConstant": "nc",
+    "Constant": "ct",
     "SliceUS": "su",
 }
 
@@ -72,8 +61,8 @@ class LocIndex(NamedTuple):
     # New in Python 3.8 AST: https://docs.python.org/3/whatsnew/3.8.html#improved-modules
     # These values are always set to None if running Python 3.7.
     # The NodeSpan class is used to manage setting the values
-    end_lineno: Optional[int] = None
-    end_col_offset: Optional[int] = None
+    end_lineno: int | None = None
+    end_col_offset: int | None = None
 
 
 class MutationOpSet(NamedTuple):
@@ -81,7 +70,7 @@ class MutationOpSet(NamedTuple):
 
     name: str
     desc: str
-    operations: Set[Any]
+    operations: set[Any]
     category: str
 
 
@@ -110,22 +99,21 @@ class NodeSpan(NamedTuple):
         return self.node.col_offset
 
     @property
-    def end_lineno(self) -> Optional[int]:
+    def end_lineno(self) -> int | None:
         """End line no: Python 3.8 will have this defined, in Python 3.7 it will be None."""
-        eline: Optional[int] = getattr(self.node, "end_lineno", None)
+        eline: int | None = getattr(self.node, "end_lineno", None)
         return eline
 
     @property
-    def end_col_offset(self) -> Optional[int]:
+    def end_col_offset(self) -> int | None:
         """End col offset: Python 3.8 will have this defined, in Python 3.7 it will be None."""
-        ecol: Optional[int] = getattr(self.node, "end_col_offset", None)
+        ecol: int | None = getattr(self.node, "end_col_offset", None)
         return ecol
 
 
 ####################################################################################################
 # MUTATE AST Definitions
 # Includes MutateBase and Mixins for 3.7 and 3.8 AST support
-# MutateAST is constructed from Base + Mixins depending on sys.version_info
 ####################################################################################################
 
 
@@ -134,10 +122,10 @@ class MutateBase(ast.NodeTransformer):
 
     def __init__(
         self,
-        target_idx: Optional[LocIndex] = None,
-        mutation: Optional[Any] = None,
+        target_idx: LocIndex | None = None,
+        mutation: Any | None = None,
         readonly: bool = False,
-        src_file: Optional[Union[Path, str]] = None,
+        src_file: Path | str | None = None,
     ) -> None:
         """Create the AST node transformer for mutations.
 
@@ -147,14 +135,14 @@ class MutateBase(ast.NodeTransformer):
         and as a mutation transformer.
 
         Note that different nodes handle the ``LocIndex`` differently based on the context. For
-        example, ``visit_BinOp`` uses direct AST types, while ``visit_NameConstant`` uses values,
+        example, ``visit_BinOp`` uses direct AST types, while ``visit_Constant`` uses values,
         and ``visit_AugAssign`` uses custom strings in a dictionary mapping.
 
         All ``visit_`` methods take the ``node`` as an argument and rely on the class properties.
 
         This MutateBase class is designed to be implemented with the appropriate Mixin Class
         for supporting either Python 3.7 or Python 3.8 ASTs. If the base class is used
-        directly certain operations - like ``visit_If`` and ``visit_NameConstant`` will not
+        directly certain operations - like ``visit_If`` and ``visit_Constant`` will not
         work as intended..
 
         Args:
@@ -163,7 +151,7 @@ class MutateBase(ast.NodeTransformer):
             readonly: flag for read-only operations, used to visit nodes instead of transform
             src_file: Source file name, used for logging purposes
         """
-        self.locs: Set[LocIndex] = set()
+        self.locs: set[LocIndex] = set()
 
         # managed via @property
         self._target_idx = target_idx
@@ -172,12 +160,12 @@ class MutateBase(ast.NodeTransformer):
         self._src_file = src_file
 
     @property
-    def target_idx(self) -> Optional[LocIndex]:
+    def target_idx(self) -> LocIndex | None:
         """Location index for the mutation in the AST"""
         return self._target_idx
 
     @property
-    def mutation(self) -> Optional[Any]:
+    def mutation(self) -> Any | None:
         """The mutation to apply, may be a type or a value"""
         return self._mutation
 
@@ -187,14 +175,9 @@ class MutateBase(ast.NodeTransformer):
         return self._readonly
 
     @property
-    def src_file(self) -> Optional[Union[Path, str]]:
+    def src_file(self) -> Path | str | None:
         """Source file name, used for logging purposes"""
         return self._src_file
-
-    @property
-    def constant_type(self) -> Union[Type[ast.NameConstant], Type[ast.Constant]]:
-        """Overridden using the MixinClasses for NameConstant(3.7) vs. Constant(3.8)."""
-        raise NotImplementedError
 
     def visit_AugAssign(self, node: ast.AugAssign) -> ast.AST:
         """AugAssign is ``-=, +=, /=, *=`` for augmented assignment."""
@@ -203,15 +186,15 @@ class MutateBase(ast.NodeTransformer):
 
         # custom mapping of string keys to ast operations that can be used
         # in the nodes since these overlap with BinOp types
-        aug_mappings = {
+        aug_mappings: dict[str, type] = {
             "AugAssign_Add": ast.Add,
             "AugAssign_Sub": ast.Sub,
             "AugAssign_Mult": ast.Mult,
             "AugAssign_Div": ast.Div,
         }
 
-        rev_mappings = {v: k for k, v in aug_mappings.items()}
-        idx_op = rev_mappings.get(type(node.op), None)
+        rev_mappings: dict[type, str] = {v: k for k, v in aug_mappings.items()}
+        idx_op: str | None = rev_mappings.get(type(node.op))
 
         # edge case protection in case the mapping isn't known for substitution
         # in that instance, return the node and take no action
@@ -322,8 +305,8 @@ class MutateBase(ast.NodeTransformer):
         # but since the AST docs specify a list of operations this seems safer.
         # idx = LocIndex("CompareIs", node.lineno, node.col_offset, type(node.ops[0]))
 
-        cmpop_is_types: Set[type] = {ast.Is, ast.IsNot}
-        cmpop_in_types: Set[type] = {ast.In, ast.NotIn}
+        cmpop_is_types: set[type] = {ast.Is, ast.IsNot}
+        cmpop_in_types: set[type] = {ast.In, ast.NotIn}
         op_type = type(node.ops[0])
         node_span = NodeSpan(node)
 
@@ -336,11 +319,11 @@ class MutateBase(ast.NodeTransformer):
         }
 
         if op_type in cmpop_is_types:
-            idx = LocIndex(ast_class="CompareIs", **locidx_kwargs)  # type: ignore
+            idx = LocIndex(ast_class="CompareIs", **locidx_kwargs)
         elif op_type in cmpop_in_types:
-            idx = LocIndex(ast_class="CompareIn", **locidx_kwargs)  # type: ignore
+            idx = LocIndex(ast_class="CompareIn", **locidx_kwargs)
         else:
-            idx = LocIndex(ast_class="Compare", **locidx_kwargs)  # type: ignore
+            idx = LocIndex(ast_class="Compare", **locidx_kwargs)
 
         self.locs.add(idx)
 
@@ -384,12 +367,11 @@ class MutateBase(ast.NodeTransformer):
         # If_Statement is not set as a mutation target, controlled in get_mutations function
         if_type = "If_Statement"
 
-        # Py 3.7 vs 3.8 - 3.7 uses NameConstant, 3.8 uses Constant
         if_mutations = {
-            "If_True": self.constant_type(value=True),
-            "If_False": self.constant_type(value=False),
+            "If_True": ast.Constant(value=True),
+            "If_False": ast.Constant(value=False),
         }
-        if type(node.test) == self.constant_type:
+        if type(node.test) == ast.Constant:
             if_type: str = f"If_{bool(node.test.value)}"  # type: ignore
 
         node_span = NodeSpan(node)
@@ -415,73 +397,14 @@ class MutateBase(ast.NodeTransformer):
         LOGGER.debug("%s (%s, %s): no mutations applied.", log_header, node.lineno, node.col_offset)
         return node
 
-    def visit_Index(self, node: ast.Index) -> ast.AST:
-        """Index visit e.g. ``i[0], i[0][1]``."""
+    def Constant(self, node: ast.Constant) -> ast.AST:
+        """Constants: ``True, False, None``."""
         self.generic_visit(node)
-        log_header = f"visit_Index: {self.src_file}:"
-
-        # Index Node has a value attribute that can be either Num node or UnaryOp node
-        # depending on whether the value is positive or negative.
-        n_value = node.value
-        idx = None
-
-        index_mutations = {
-            "Index_NumZero": ast.Num(n=0),
-            "Index_NumPos": ast.Num(n=1),
-            "Index_NumNeg": ast.UnaryOp(op=ast.USub(), operand=ast.Num(n=1)),
-        }
-
-        node_span = NodeSpan(n_value)
-        locidx_kwargs = {
-            "ast_class": "Index",
-            "lineno": node_span.lineno,
-            "col_offset": node_span.col_offset,
-            "end_lineno": node_span.end_lineno,
-            "end_col_offset": node_span.end_col_offset,
-        }
-
-        # index is a non-negative number e.g. i[0], i[1]
-        if isinstance(n_value, ast.Num):
-            # positive integer case
-            if n_value.n != 0:
-                idx = LocIndex(op_type="Index_NumPos", **locidx_kwargs)  # type: ignore
-                self.locs.add(idx)
-
-            # zero value case
-            else:
-                idx = LocIndex(op_type="Index_NumZero", **locidx_kwargs)  # type: ignore
-                self.locs.add(idx)
-
-        # index is a negative number e.g. i[-1]
-        if isinstance(n_value, ast.UnaryOp):
-            idx = LocIndex(op_type="Index_NumNeg", **locidx_kwargs)  # type: ignore
-            self.locs.add(idx)
-
-        if idx == self.target_idx and self.mutation and not self.readonly:
-            LOGGER.debug("%s mutating idx: %s with %s", log_header, self.target_idx, self.mutation)
-            mutation = index_mutations[self.mutation]
-
-            # uses AST.fix_missing_locations since the values of ast.Num and  ast.UnaryOp also need
-            # lineno and col-offset values. This is a recursive fix.
-            return ast.fix_missing_locations(ast.copy_location(ast.Index(value=mutation), node))
-
-        LOGGER.debug(
-            "%s (%s, %s): no mutations applied.", log_header, n_value.lineno, n_value.col_offset
-        )
-        return node
-
-    def mixin_NameConstant(self, node: Union[ast.NameConstant, ast.Constant]) -> ast.AST:
-        """Constants: ``True, False, None``.
-
-        This method is called by using the Mixin classes for handling the difference of
-        ast.NameConstant (Py 3.7) an ast.Constant (Py 3.8).
-        """
-        self.generic_visit(node)
-        log_header = f"visit_NameConstant: {self.src_file}:"
+        log_header = f"visit_Constant: {self.src_file}:"
 
         node_span = NodeSpan(node)
         idx = LocIndex(
-            ast_class="NameConstant",
+            ast_class="Constant",
             lineno=node_span.lineno,
             col_offset=node_span.col_offset,
             op_type=node.value,
@@ -492,7 +415,7 @@ class MutateBase(ast.NodeTransformer):
 
         if idx == self.target_idx and not self.readonly:
             LOGGER.debug("%s mutating idx: %s with %s", log_header, self.target_idx, self.mutation)
-            return ast.copy_location(self.constant_type(value=self.mutation), node)
+            return ast.copy_location(ast.Constant(value=self.mutation), node)
 
         LOGGER.debug("%s (%s, %s): no mutations applied.", log_header, node.lineno, node.col_offset)
         return node
@@ -512,7 +435,7 @@ class MutateBase(ast.NodeTransformer):
 
         # Built "on the fly" based on the various conditions for operation types
         # The RangeChange options are added in the later if/else cases
-        slice_mutations: Dict[str, ast.Slice] = {
+        slice_mutations: dict[str, ast.Slice] = {
             "Slice_UnboundUpper": ast.Slice(lower=slice.upper, upper=None, step=slice.step),
             "Slice_UnboundLower": ast.Slice(lower=None, upper=slice.lower, step=slice.step),
             "Slice_Unbounded": ast.Slice(lower=None, upper=None, step=slice.step),
@@ -530,14 +453,18 @@ class MutateBase(ast.NodeTransformer):
         # upper slice range e.g. x[:2] will become x[2:]
         if slice.lower is None and slice.upper is not None:
             idx = LocIndex(
-                ast_class="SliceUS", op_type="Slice_UnboundLower", **locidx_kwargs  # type: ignore
+                ast_class="SliceUS",
+                op_type="Slice_UnboundLower",
+                **locidx_kwargs,
             )
             self.locs.add(idx)
 
         # lower slice range e.g. x[1:] will become x[:1]
         if slice.upper is None and slice.lower is not None:
             idx = LocIndex(
-                ast_class="SliceUS", op_type="Slice_UnboundUpper", **locidx_kwargs  # type: ignore
+                ast_class="SliceUS",
+                op_type="Slice_UnboundUpper",
+                **locidx_kwargs,
             )
             self.locs.add(idx)
 
@@ -558,54 +485,23 @@ class MutateBase(ast.NodeTransformer):
         return node
 
 
-class NameConstantMixin:
-    """Mixin for Python 3.7 AST applied to MutateBase."""
-
-    @property
-    def constant_type(self) -> Type[ast.NameConstant]:
-        return ast.NameConstant
-
-    def visit_NameConstant(self, node: ast.NameConstant) -> ast.AST:
-        """NameConstants: ``True, False, None``."""
-        return self.mixin_NameConstant(node)  # type: ignore
-
-
 class ConstantMixin:
     """Mixin for Python 3.8 AST applied to MutateBase."""
 
-    @property
-    def constant_type(self) -> Type[ast.Constant]:
-        return ast.Constant
-
     def visit_Constant(self, node: ast.Constant) -> ast.AST:
         """Constants: https://bugs.python.org/issue32892
-            NameConstant: ``True, False, None``.
-            Num: isinstance(int, float)
-            Str: isinstance(str)
+        Constant: ``True, False, None``.
+        Num: isinstance(int, float)
+        Str: isinstance(str)
         """
-        # NameConstant behavior consistent with Python 3.7
         if isinstance(node.value, bool) or node.value is None:
-            return self.mixin_NameConstant(node)  # type: ignore
+            return self.Constant(node)  # type: ignore
 
         return node
 
 
-# PYTHON 3.7
-if sys.version_info < (3, 8):
-
-    class MutateAST(NameConstantMixin, MutateBase):
-        """Implementation of the MutateAST class based on running environment."""
-
-        pass
-
-
-# PYTHON 3.8
-else:
-
-    class MutateAST(ConstantMixin, MutateBase):
-        """Implementation of the MutateAST class based on running environment."""
-
-        pass
+class MutateAST(ConstantMixin, MutateBase):
+    """Implementation of the MutateAST class based on running environment."""
 
 
 ####################################################################################################
@@ -613,7 +509,7 @@ else:
 ####################################################################################################
 
 
-def get_compatible_operation_sets() -> List[MutationOpSet]:
+def get_compatible_operation_sets() -> list[MutationOpSet]:
     """Utility function to return a list of compatible AST mutations with names.
 
     All of the mutation transformation sets that are supported by mutatest are defined here.
@@ -627,30 +523,30 @@ def get_compatible_operation_sets() -> List[MutationOpSet]:
     """
 
     # AST operations that are sensible mutations for each other
-    binop_types: Set[type] = {ast.Add, ast.Sub, ast.Div, ast.Mult, ast.Pow, ast.Mod, ast.FloorDiv}
-    binop_bit_cmp_types: Set[type] = {ast.BitAnd, ast.BitOr, ast.BitXor}
-    binop_bit_shift_types: Set[type] = {ast.LShift, ast.RShift}
-    cmpop_types: Set[type] = {ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE}
-    cmpop_is_types: Set[type] = {ast.Is, ast.IsNot}
-    cmpop_in_types: Set[type] = {ast.In, ast.NotIn}
-    boolop_types: Set[type] = {ast.And, ast.Or}
+    binop_types: set[type] = {ast.Add, ast.Sub, ast.Div, ast.Mult, ast.Pow, ast.Mod, ast.FloorDiv}
+    binop_bit_cmp_types: set[type] = {ast.BitAnd, ast.BitOr, ast.BitXor}
+    binop_bit_shift_types: set[type] = {ast.LShift, ast.RShift}
+    cmpop_types: set[type] = {ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE}
+    cmpop_is_types: set[type] = {ast.Is, ast.IsNot}
+    cmpop_in_types: set[type] = {ast.In, ast.NotIn}
+    boolop_types: set[type] = {ast.And, ast.Or}
 
-    # Python built-in constants (singletons) that can be used with NameConstant AST node
-    named_const_singletons: Set[Union[bool, None]] = {True, False, None}
+    # Python built-in constants (singletons) that can be used with Constant AST node
+    const_singletons: set[bool | None] = {True, False, None}
 
     # Custom augmentation ops to differentiate from bin_op types
     # these are defined for substitution within the visit_AugAssign node and need to match
-    aug_assigns: Set[str] = {"AugAssign_Add", "AugAssign_Sub", "AugAssign_Mult", "AugAssign_Div"}
+    aug_assigns: set[str] = {"AugAssign_Add", "AugAssign_Sub", "AugAssign_Mult", "AugAssign_Div"}
 
     # Custom references for substitutions of zero, positive, and negative iterable indicies
-    index_types: Set[str] = {"Index_NumPos", "Index_NumNeg", "Index_NumZero"}
+    index_types: set[str] = {"Index_NumPos", "Index_NumNeg", "Index_NumZero"}
 
     # Custom references for If statement substitutions
     # only If_True and If_False will be applied as mutations
-    if_types: Set[str] = {"If_True", "If_False", "If_Statement"}
+    if_types: set[str] = {"If_True", "If_False", "If_Statement"}
 
     # Custom references for subscript substitutions for slice mutations
-    slice_bounded_types: Set[str] = {"Slice_UnboundUpper", "Slice_UnboundLower", "Slice_Unbounded"}
+    slice_bounded_types: set[str] = {"Slice_UnboundUpper", "Slice_UnboundLower", "Slice_Unbounded"}
 
     return [
         MutationOpSet(
@@ -714,10 +610,10 @@ def get_compatible_operation_sets() -> List[MutationOpSet]:
             category=CATEGORIES["Index"],
         ),
         MutationOpSet(
-            name="NameConstant",
-            desc="Named constant mutations e.g. True, False, None",
-            operations=named_const_singletons,
-            category=CATEGORIES["NameConstant"],
+            name="Constant",
+            desc="Constant mutations e.g. True, False, None",
+            operations=const_singletons,
+            category=CATEGORIES["Constant"],
         ),
         MutationOpSet(
             name="Slice Unbounded Swap",
@@ -731,7 +627,7 @@ def get_compatible_operation_sets() -> List[MutationOpSet]:
     ]
 
 
-def get_mutations_for_target(target: LocIndex) -> Set[Any]:
+def get_mutations_for_target(target: LocIndex) -> set[Any]:
     """Given a target, find all the mutations that could apply from the AST definitions.
 
     Args:
@@ -740,8 +636,8 @@ def get_mutations_for_target(target: LocIndex) -> Set[Any]:
     Returns:
         Set of types that can mutated into the target location.
     """
-    search_space: List[Set[Any]] = [m.operations for m in get_compatible_operation_sets()]
-    mutation_ops: Set[Any] = set()
+    search_space: list[set[Any]] = [m.operations for m in get_compatible_operation_sets()]
+    mutation_ops: set[Any] = set()
 
     for potential_ops in search_space:
         if target.op_type in potential_ops:

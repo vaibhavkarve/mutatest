@@ -6,6 +6,7 @@ The command line interface controls. This module defines the entry point for run
 from the command line and the full main trial routine - clean trials, mutations trials, reporting
 results.
 """
+
 import argparse
 import configparser
 import itertools
@@ -13,33 +14,31 @@ import logging
 import re
 import shlex
 import sys
-
 import tomllib
-
+from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Type
+from typing import Any, NamedTuple
 
 from setuptools import find_packages
 
 import mutatest
-
 from mutatest import cache, report, run, transformers
 from mutatest.run import Config, MutantTrialResult
-
 
 LOGGER = logging.getLogger(__name__)
 FORMAT = "%(asctime)s: %(message)s"
 DEBUG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-PYPROJECT_FILE = Path("pyproject.toml")
+PYPROJECT_FILE = Path(__file__).parent.parent / "pyproject.toml"
 PYPROJECT_CONTENTS = tomllib.loads(PYPROJECT_FILE.read_text())
+
 
 class SettingsFile(NamedTuple):
     """Container for settings file in ini or cfg parsing format."""
 
     path: Path
-    sections: List[str]  # hierarchy of keys to search
+    sections: list[str]  # hierarchy of keys to search
 
 
 # SETTINGS_FILES is the search hierarchy for configuration files
@@ -89,24 +88,24 @@ class TrialTimes(NamedTuple):
 class PositiveIntegerAction(argparse.Action):
     """Custom action for ensuring positive integers in number of trials."""
 
-    def __call__(self, parser, namespace, values, option_string=None):  # type: ignore
+    def __call__(self, parser, namespace, values, option_string=None):
         if values <= 0:
-            parser.error("{0} must be a non-zero positive integer.".format(option_string))
+            parser.error(f"{option_string} must be a non-zero positive integer.")
 
         setattr(namespace, self.dest, values)
 
 
 def get_constrained_float_action(
-    min_val: Optional[float] = None, max_val: Optional[float] = None
-) -> Type[argparse.Action]:
+    min_val: float | None = None, max_val: float | None = None
+) -> type[argparse.Action]:
     class ConstrainedFloatAction(argparse.Action):
         """Custom action for ensuring floats arguments meet these."""
 
-        def __call__(self, parser, namespace, values, option_string=None):  # type: ignore
+        def __call__(self, parser, namespace, values, option_string=None):
             if min_val is not None and values < min_val:
-                parser.error("{0} must be no smaller than {1}.".format(option_string, min_val))
+                parser.error(f"{option_string} must be no smaller than {min_val}.")
             if max_val is not None and values > max_val:
-                parser.error("{0} must be no greater than {1}.".format(option_string, max_val))
+                parser.error(f"{option_string} must be no greater than {max_val}.")
 
             setattr(namespace, self.dest, values)
 
@@ -116,17 +115,14 @@ def get_constrained_float_action(
 class ValidCategoryAction(argparse.Action):
     """Custom action to ensure only valid categories are used for only/skip listing."""
 
-    def __call__(self, parser, namespace, values, option_string=None):  # type: ignore
+    def __call__(self, parser, namespace, values, option_string=None):
         if len(values) > 0:
-
             valid_categories = {m.category for m in transformers.get_compatible_operation_sets()}
             values_set = set(values)
 
             if not values_set.issubset(valid_categories):
                 parser.error(
-                    "{0} must only hold valid categories. Use --help to see options.".format(
-                        option_string
-                    )
+                    f"{option_string} must only hold valid categories. Use --help to see options."
                 )
 
         setattr(namespace, self.dest, values)
@@ -135,14 +131,12 @@ class ValidCategoryAction(argparse.Action):
 class SurvivingMutantException(Exception):
     """Exception for surviving mutations."""
 
-    pass
-
 
 class ParserActionMap(NamedTuple):
     """Container for parser mappings used in ConfigParsing with CLI args."""
 
-    actions: Dict[str, str]
-    action_types: Dict[Any, List[str]]
+    actions: dict[str, str]
+    action_types: dict[Any, list[str]]
 
 
 ####################################################################################################
@@ -360,15 +354,13 @@ def cli_epilog() -> str:
     )
     mutation_epilog = [header, "=" * len(header), description, "\n"]
     for mutop in transformers.get_compatible_operation_sets():
-        mutation_epilog.extend(
-            [
-                mutop.name,
-                "-" * len(mutop.name),
-                f" - Description: {mutop.desc}",
-                f" - Members: {str(mutop.operations)}",
-                f" - Category Code: {str(mutop.category)}\n",
-            ]
-        )
+        mutation_epilog.extend([
+            mutop.name,
+            "-" * len(mutop.name),
+            f" - Description: {mutop.desc}",
+            f" - Members: {mutop.operations!s}",
+            f" - Category Code: {mutop.category!s}\n",
+        ])
 
     meta_info = dedent(
         """
@@ -379,14 +371,12 @@ def cli_epilog() -> str:
      - URL: {url}
      - {copyright}
     """
-    ).format_map(
-        {
-            "version": PYPROJECT_CONTENTS["project"]["version"],
-            "license": mutatest.__license__,
-            "url": PYPROJECT_CONTENTS["project"]["urls"]["Homepage"],
-            "copyright": mutatest.__copyright__,
-        }
-    )
+    ).format_map({
+        "version": PYPROJECT_CONTENTS["project"]["version"],
+        "license": mutatest.__license__,
+        "url": PYPROJECT_CONTENTS["project"]["urls"]["Homepage"],
+        "copyright": mutatest.__copyright__,
+    })
 
     return "\n".join([main_epilog] + mutation_epilog + [meta_info])
 
@@ -436,8 +426,8 @@ def get_parser_actions(parser: argparse.ArgumentParser) -> ParserActionMap:
     Returns:
         ParserActionMap: includes actions and action_types
     """
-    actions: Dict[str, str] = {}
-    action_types: Dict[Any, List[str]] = {}
+    actions: dict[str, str] = {}
+    action_types: dict[Any, list[str]] = {}
 
     for action in parser._actions:
         # build the actions
@@ -447,16 +437,16 @@ def get_parser_actions(parser: argparse.ArgumentParser) -> ParserActionMap:
         # build the action_types
         # values align to the keywords that can be used in the INI config
         try:
-            action_types[type(action)].append(action.option_strings[-1].strip("--"))
+            action_types[type(action)].append(action.option_strings[-1].removeprefix("--"))
 
         except KeyError:
-            action_types[type(action)] = [action.option_strings[-1].strip("--")]
+            action_types[type(action)] = [action.option_strings[-1].removeprefix("--")]
 
     return ParserActionMap(actions=actions, action_types=action_types)
 
 
 def read_ini_config(
-    config_path: Path, sections: Optional[List[str]] = None
+    config_path: Path, sections: list[str] | None = None
 ) -> configparser.SectionProxy:
     """Read a config_path using ConfigParser
 
@@ -474,7 +464,7 @@ def read_ini_config(
     sections = sections or ["mutatest"]
     config = configparser.ConfigParser()
     # ensures [  mutatest  ] is valid like [mutatest] in a section key
-    config.SECTCRE = re.compile(r"\[ *(?P<header>[^]]+?) *\]")  # type: ignore
+    config.SECTCRE = re.compile(r"\[ *(?P<header>[^]]+?) *\]")
 
     config.read(config_path)
 
@@ -490,7 +480,7 @@ def read_ini_config(
 
 def parse_ini_config_with_cli(
     parser: argparse.ArgumentParser, ini_config: configparser.SectionProxy, cli_args: Sequence[str]
-) -> List[str]:
+) -> list[str]:
     """Combine the INI file settings with the CLI args, using the CLI args as the override.
 
     Args:
@@ -505,18 +495,17 @@ def parse_ini_config_with_cli(
     action_maps = get_parser_actions(parser)
     final_args_list = [action_maps.actions.get(i, i) for i in cli_args]
 
-    def ws_proc(value: str) -> List[str]:
+    def ws_proc(value: str) -> list[str]:
         """Convenience function for stripping newlines from configparser section values
         and splitting whitespace to a list.
         """
         return value.replace("\n", " ").split()
 
-    for k in ini_config.keys():
+    for k in ini_config:
         arg_key = f"--{k}"
 
         if arg_key in action_maps.actions.values() and arg_key not in final_args_list:
-
-            if k in action_maps.action_types[mutatest.cli.ValidCategoryAction]:
+            if k in action_maps.action_types[ValidCategoryAction]:
                 values = ws_proc(ini_config[k])
                 final_args_list.extend([arg_key] + values)
 
@@ -526,9 +515,9 @@ def parse_ini_config_with_cli(
 
             elif k in action_maps.action_types[argparse._AppendAction]:
                 values = ws_proc(ini_config[k])
-                final_args_list.extend(
-                    [i for j in list(itertools.product([arg_key], values)) for i in j]
-                )
+                final_args_list.extend([
+                    i for j in list(itertools.product([arg_key], values)) for i in j
+                ])
 
             else:
                 final_args_list.extend([arg_key, ini_config[k]])
@@ -615,7 +604,7 @@ def cli_summary_report(
 ####################################################################################################
 
 
-def get_src_location(src_loc: Optional[Path] = None) -> Path:
+def get_src_location(src_loc: Path | None = None) -> Path:
     """Find packages is used if the ``src_loc`` is not set
 
     Args:
@@ -642,7 +631,7 @@ def get_src_location(src_loc: Optional[Path] = None) -> Path:
     )
 
 
-def selected_categories(only: List[str], skip: List[str]) -> List[str]:
+def selected_categories(only: list[str], skip: list[str]) -> list[str]:
     """Create the selected categories from the skip/only set to use in filtering.
 
     Args:
@@ -662,7 +651,7 @@ def selected_categories(only: List[str], skip: List[str]) -> List[str]:
     return list(all_mutations - b_set)
 
 
-def exception_processing(n_survivors: int, trial_results: List[MutantTrialResult]) -> None:
+def exception_processing(n_survivors: int, trial_results: list[MutantTrialResult]) -> None:
     """Raise a custom mutation exception if ``n_survivors`` count is met.
 
     Args:
@@ -712,7 +701,6 @@ def cli_args(args: Sequence[str], search_config_files: bool = True) -> argparse.
 
     if search_config_files:
         for ini_config_file in SETTINGS_FILES:
-
             if ini_config_file.path.exists():
                 try:
                     ini_config = read_ini_config(ini_config_file.path, ini_config_file.sections)
@@ -757,7 +745,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Run the mutation trials based on the input argument
     # set categories if present
-    filter_codes: List[str] = list()
+    filter_codes: list[str] = []
     if len(args.only) > 0 or len(args.skip) > 0:
         filter_codes = selected_categories(only=args.only, skip=args.skip)
 
@@ -810,7 +798,7 @@ def main(args: argparse.Namespace) -> None:
     LOGGER.info("Surviving mutations:%s\n", display_results.survived)
 
     if args.output:
-        report.write_report("\n".join([cli_report, trial_report]), Path(args.output))
+        report.write_report(f"{cli_report}\n{trial_report}", Path(args.output))
 
     if args.exception:
         LOGGER.info("Survivor tolerance check for %s surviving mutants.", args.exception)

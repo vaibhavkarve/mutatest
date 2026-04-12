@@ -1,12 +1,11 @@
-"""Tests for the filters.
-"""
+"""Tests for the filters."""
+
 from pathlib import Path
 
 import pytest
 
 from mutatest.filters import CategoryCodeFilter, CoverageFilter
 from mutatest.transformers import CATEGORIES
-
 
 ####################################################################################################
 # COVERAGE FILTER TESTS

@@ -1,5 +1,4 @@
-"""Example A.
-"""
+"""Example A."""
 
 
 def add_five(a):

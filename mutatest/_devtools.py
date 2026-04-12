@@ -3,6 +3,7 @@
 These are utility classes and functions used in the development process for new operations
 and features. They are not used by the main program, and are not covered in standard testing.
 """
+
 import ast
 
 
@@ -53,14 +54,9 @@ class NodeLister(ast.NodeVisitor):  # pragma: no cover
         print(ast.dump(node))
         self.generic_visit(node)
 
-    def visit_Index(self, node: ast.Index) -> None:
-        # actual slicing
-        print(f"Index: {node}")
-        print(ast.dump(node))
-
-    def visit_NameConstant(self, node: ast.NameConstant) -> None:
+    def visit_Constant(self, node: ast.Constant) -> None:
         # True, False, None
-        print(f"NameConstant: {node}")
+        print(f"Constant: {node}")
         print(ast.dump(node))
         self.generic_visit(node)
 

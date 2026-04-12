@@ -1,21 +1,17 @@
-"""Tests for the cli module.
-"""
+"""Tests for the cli module."""
 
 import argparse
-
 from datetime import timedelta
 from pathlib import Path
 from textwrap import dedent
-from typing import List, NamedTuple
+from typing import NamedTuple
 
-import hypothesis.strategies as st  # type: ignore
+import hypothesis.strategies as st
 import pytest
-
 from freezegun import freeze_time
-from hypothesis import given  # type: ignore
+from hypothesis import given
 
 import mutatest.cli
-
 from mutatest import cli
 from mutatest.cli import RunMode, SurvivingMutantException, TrialTimes
 
@@ -191,7 +187,7 @@ def test_main(monkeypatch, mock_args, mock_results_summary):
          - TIMEOUT: 1
          - UNKNOWN: 1
          - TOTAL RUNS: 5
-         - RUN DATETIME: 2019-01-01 00:00:00
+         - RUN DATETIME: 2019-01-01 00:00:00+00:00
 
 
         Mutations by result status
@@ -200,27 +196,27 @@ def test_main(monkeypatch, mock_args, mock_results_summary):
 
         SURVIVED
         --------
-         - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>
+         - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>
 
 
         TIMEOUT
         -------
-         - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>
+         - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>
 
 
         DETECTED
         --------
-         - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>
+         - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>
 
 
         ERROR
         -----
-         - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>
+         - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>
 
 
         UNKNOWN
         -------
-         - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>"""
+         - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>"""
     ).format_map({"src_loc": mock_args.src.resolve()})
 
     def mock_clean_trial(*args, **kwargs):
@@ -298,7 +294,7 @@ class MockINI(NamedTuple):
     """Container for the Mock ini config."""
 
     ini_file: Path
-    args: List[str]
+    args: list[str]
 
 
 @pytest.fixture
@@ -307,7 +303,7 @@ def mock_ini_file(tmp_path):
     ini_contents = dedent(
         """\
     [mutatest]
-    skip = nc su ix
+    skip = ct su ix
     exclude =
         mutatest/__init__.py
         mutatest/_devtools.py
@@ -325,7 +321,7 @@ def mock_ini_file(tmp_path):
 
     default_args = [
         "--skip",
-        "nc",
+        "ct",
         "su",
         "ix",
         "--exclude",
@@ -355,10 +351,10 @@ def test_read_setup_cfg_missing_mutatest_ini(tmp_path, section, monkeypatch):
     ini_contents = dedent(
         f"""\
     [{section}]
-    only = nc su ix"""
+    only = ct su ix"""
     )
 
-    expected = ["nc", "su", "ix"]
+    expected = ["ct", "su", "ix"]
 
     with open(tmp_path / "setup.cfg", "w") as fstream:
         fstream.write(ini_contents)
@@ -396,7 +392,7 @@ def test_read_ini_config_keys(mock_ini_file):
     """Ensure the keys align to the mock from reading the file."""
     section = cli.read_ini_config(mock_ini_file.ini_file)
     expected_keys = ["skip", "exclude", "mode", "rseed", "testcmds", "debug", "nocov"]
-    result = [k for k in section.keys()]
+    result = [k for k in section]
     assert result == expected_keys
 
 

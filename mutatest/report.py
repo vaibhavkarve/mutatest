@@ -4,18 +4,16 @@ Report
 
 Functions used to aggregate and produce the final RST reports seen on the CLI.
 """
-import logging
 
+import logging
 from collections import Counter
-from datetime import datetime
+from datetime import UTC, datetime
 from operator import attrgetter
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Tuple, Union
+from typing import NamedTuple
 
 from mutatest import run
-from mutatest.run import MutantReport
-from mutatest.run import MutantTrialResult
-
+from mutatest.run import MutantReport, MutantTrialResult
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,7 +22,7 @@ class ReportedMutants(NamedTuple):
     """Container for reported mutants to pair status with the list of mutants."""
 
     status: str
-    mutants: List[MutantReport]
+    mutants: list[MutantReport]
 
 
 class DisplayResults(NamedTuple):
@@ -36,7 +34,7 @@ class DisplayResults(NamedTuple):
     detected: str
 
 
-def get_reported_results(trial_results: List[MutantTrialResult], status: str) -> ReportedMutants:
+def get_reported_results(trial_results: list[MutantTrialResult], status: str) -> ReportedMutants:
     """Utility function to create filtered lists of mutants based on status.
 
     Args:
@@ -50,7 +48,7 @@ def get_reported_results(trial_results: List[MutantTrialResult], status: str) ->
     return ReportedMutants(status, mutants)
 
 
-def get_status_summary(trial_results: List[MutantTrialResult]) -> Dict[str, Union[str, int]]:
+def get_status_summary(trial_results: list[MutantTrialResult]) -> dict[str, str | int]:
     """Create a status summary dictionary for later formatting.
 
     Args:
@@ -59,14 +57,14 @@ def get_status_summary(trial_results: List[MutantTrialResult]) -> Dict[str, Unio
     Returns:
         Dictionary with keys for formatting in the report
     """
-    status: Dict[str, Union[str, int]] = dict(Counter([t.status for t in trial_results]))
+    status: dict[str, str | int] = dict(Counter([t.status for t in trial_results]))
     status["TOTAL RUNS"] = len(trial_results)
-    status["RUN DATETIME"] = str(datetime.now())
+    status["RUN DATETIME"] = str(datetime.now(tz=UTC))
 
     return status
 
 
-def analyze_mutant_trials(trial_results: List[MutantTrialResult]) -> Tuple[str, DisplayResults]:
+def analyze_mutant_trials(trial_results: list[MutantTrialResult]) -> tuple[str, DisplayResults]:
     """Create the analysis text report string for the trials.
 
     Additionally, return a DisplayResults NamedTuple that includes terminal coloring for the
@@ -145,7 +143,7 @@ def analyze_mutant_trials(trial_results: List[MutantTrialResult]) -> Tuple[str, 
     )
 
 
-def build_report_section(title: str, mutants: List[MutantReport]) -> str:
+def build_report_section(title: str, mutants: list[MutantReport]) -> str:
     """Build a readable mutation report section from the list of mutants.
 
     It will look like:

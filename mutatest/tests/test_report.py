@@ -1,10 +1,9 @@
-"""Tests for report formatting.
-"""
-from datetime import datetime
+"""Tests for report formatting."""
+
+from datetime import UTC, datetime
 from textwrap import dedent
 
 import pytest
-
 from freezegun import freeze_time
 
 from mutatest.report import (
@@ -35,7 +34,7 @@ def test_get_status_summary(mock_trial_results):
         "UNKNOWN": 1,
         "TIMEOUT": 1,
         "TOTAL RUNS": 5,
-        "RUN DATETIME": str(datetime(2019, 1, 1)),
+        "RUN DATETIME": str(datetime(2019, 1, 1, tzinfo=UTC)),
     }
 
     result = get_status_summary(mock_trial_results)
@@ -57,7 +56,7 @@ def test_build_report_section(mock_Mutant):
 
     Title
     -----
-     - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>"""
+     - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>"""
     )
 
     assert report == expected
@@ -73,7 +72,7 @@ def test_analyze_mutant_trials(mock_trial_results):
      - SURVIVED: 1
      - DETECTED: 1
      - TOTAL RUNS: 2
-     - RUN DATETIME: 2019-01-01 00:00:00
+     - RUN DATETIME: 2019-01-01 00:00:00+00:00
 
 
     Mutations by result status
@@ -82,12 +81,12 @@ def test_analyze_mutant_trials(mock_trial_results):
 
     SURVIVED
     --------
-     - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>
+     - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>
 
 
     DETECTED
     --------
-     - src.py: (l: 1, c: 2) - mutation from <class '_ast.Add'> to <class '_ast.Mult'>"""
+     - src.py: (l: 1, c: 2) - mutation from <class 'ast.Add'> to <class 'ast.Mult'>"""
     )
 
     report, _ = analyze_mutant_trials(mock_trial_results[:2])

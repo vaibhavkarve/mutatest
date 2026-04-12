@@ -8,14 +8,12 @@ Many functions are encapsulated in the ``Mutant.write_cache()`` method.
 Note that the parallel pycache controls are in the ``run.create_mutation_run_parallelcache_trial()``
 function for multiprocessing.
 """
+
 import importlib
 import logging
 import os
-
 from pathlib import Path
 from py_compile import PycInvalidationMode
-from typing import Union
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ def check_cache_invalidation_mode() -> PycInvalidationMode:
         EnvironmentError: if the SOURCE_DATE_EPOCH environment variable is set.
     """
     if os.environ.get("SOURCE_DATE_EPOCH"):
-        raise EnvironmentError(
+        raise OSError(
             "SOURCE_DATE_EPOCH set, but only TIMESTAMP cache invalidation is supported. "
             "Clear this environment variable so that timestamp invalidation of the Python "
             "cache can be used to trigger mutations for the testing suite."
@@ -45,7 +43,7 @@ def check_cache_invalidation_mode() -> PycInvalidationMode:
     return PycInvalidationMode.TIMESTAMP
 
 
-def get_cache_file_loc(src_file: Union[str, Path]) -> Path:
+def get_cache_file_loc(src_file: str | Path) -> Path:
     """Use importlib to determine the cache file location for the source file.
 
     Reference: https://github.com/python/cpython/blob/master/Lib/py_compile.py#L130

@@ -6,36 +6,35 @@ The run functions are used to run mutation trials from the CLI. These can be use
 for other customized running requirements. The ``Config`` data-class defines the running
 parameters for the full trial suite. Sampling functions are defined here as well.
 """
+
 import importlib
 import itertools
 import logging
 import multiprocessing
 import os
 import random
-import subprocess
 import shutil
-import sys
+import subprocess
 import uuid
-
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from operator import attrgetter
 from pathlib import Path
-from typing import Any, Callable, List, NamedTuple, Optional
+from typing import Any, Final, NamedTuple
 
 from mutatest import cache
 from mutatest.api import Genome, GenomeGroup, GenomeGroupTarget
 from mutatest.filters import CategoryCodeFilter
 from mutatest.transformers import CATEGORIES, LocIndex
 
-
-LOGGER = logging.getLogger(__name__)
+LOGGER: logging.Logger = logging.getLogger(__name__)
 
 # Additional seconds to add to max_timeout in the multi-processing subprocess
-MULTI_PROC_TIMEOUT_BUFFER = 10  # seconds
+MULTI_PROC_TIMEOUT_BUFFER: Final[int] = 10  # seconds
 
 # location to hold parallel pycache runs
-PARALLEL_PYCACHE_DIR = Path(".mutatest_cache")
+PARALLEL_PYCACHE_DIR: Final[Path] = Path(".mutatest_cache")
 
 
 @dataclass
@@ -43,9 +42,9 @@ class Config:
     """Run configuration used for mutation trials."""
 
     n_locations: int = 0
-    exclude_files: List[Path] = field(default_factory=list)
-    filter_codes: List[str] = field(default_factory=list)
-    random_seed: Optional[int] = None
+    exclude_files: list[Path] = field(default_factory=list)
+    filter_codes: list[str] = field(default_factory=list)
+    random_seed: int | None = None
     break_on_survival: bool = False
     break_on_detected: bool = False
     break_on_error: bool = False
@@ -80,7 +79,7 @@ class MutantTrialResult(NamedTuple):
 class ResultsSummary(NamedTuple):
     """Results summary container."""
 
-    results: List[MutantTrialResult]
+    results: list[MutantTrialResult]
     n_locs_mutated: int
     n_locs_identified: int
     total_runtime: timedelta
@@ -89,11 +88,9 @@ class ResultsSummary(NamedTuple):
 class BaselineTestException(Exception):
     """Used as an exception for the clean trial runs."""
 
-    pass
-
 
 # Used to define signature of trial runners for dispatcher
-TRIAL_RUNNER_TYPE = Callable[[Genome, LocIndex, Any, List[str], float], MutantTrialResult]
+TRIAL_RUNNER_TYPE = Callable[[Genome, LocIndex, Any, list[str], int | float], MutantTrialResult]
 
 ####################################################################################################
 # UTILITY FUNCTIONS
@@ -140,7 +137,7 @@ def capture_output(log_level: int) -> bool:
 ####################################################################################################
 
 
-def clean_trial(src_loc: Path, test_cmds: List[str]) -> timedelta:
+def clean_trial(src_loc: Path, test_cmds: list[str]) -> timedelta:
     """Remove all existing cache files and run the test suite.
 
     Args:
@@ -158,14 +155,14 @@ def clean_trial(src_loc: Path, test_cmds: List[str]) -> timedelta:
     LOGGER.info("Running clean trial")
 
     # clean trial will show output all the time for diagnostic purposes
-    start = datetime.now()
-    clean_run = subprocess.run(test_cmds, capture_output=False)
-    end = datetime.now()
+    start = datetime.now(tz=UTC)
+    clean_run = subprocess.run(test_cmds, capture_output=False, check=True)
+    end = datetime.now(tz=UTC)
 
     if clean_run.returncode != 0:
         raise BaselineTestException(
             f"Clean trial does not pass, mutant tests will be meaningless.\n"
-            f"Output: {str(clean_run.stdout)}"
+            f"Output: {clean_run.stdout!s}"
         )
 
     return end - start
@@ -176,7 +173,7 @@ def clean_trial(src_loc: Path, test_cmds: List[str]) -> timedelta:
 ####################################################################################################
 
 
-def get_sample(ggrp: GenomeGroup, ignore_coverage: bool) -> List[GenomeGroupTarget]:
+def get_sample(ggrp: GenomeGroup, ignore_coverage: bool) -> list[GenomeGroupTarget]:
     """Get the sample space for the mutation trials.
 
     This will attempt to use covered-targets as the default unless ``ignore_coverage`` is set
@@ -211,8 +208,8 @@ def get_sample(ggrp: GenomeGroup, ignore_coverage: bool) -> List[GenomeGroupTarg
 
 
 def get_mutation_sample_locations(
-    sample_space: List[GenomeGroupTarget], n_locations: int
-) -> List[GenomeGroupTarget]:
+    sample_space: list[GenomeGroupTarget], n_locations: int
+) -> list[GenomeGroupTarget]:
     """Create the mutation sample space and set n_locations to a correct value for reporting.
 
     ``n_locations`` will change if it is larger than the total sample_space.
@@ -282,7 +279,7 @@ def get_genome_group(src_loc: Path, config: Config) -> GenomeGroup:
         LOGGER.info("Category restriction, chosen categories: %s", sorted(config.filter_codes))
         ggrp.set_filter(filter_codes=config.filter_codes)
 
-    for k, genome in ggrp.items():
+    for genome in ggrp.values():
         LOGGER.info(
             "%s",
             colorize_output(
@@ -368,7 +365,7 @@ def trial_output_check_break(
 
 
 def create_mutation_run_trial(
-    genome: Genome, target_idx: LocIndex, mutation_op: Any, test_cmds: List[str], max_runtime: float
+    genome: Genome, target_idx: LocIndex, mutation_op: Any, test_cmds: list[str], max_runtime: float
 ) -> MutantTrialResult:
     """Run a single mutation trial by creating a new mutated cache file, running the
     test commands, and then removing the mutated cache file.
@@ -392,6 +389,7 @@ def create_mutation_run_trial(
             test_cmds,
             capture_output=capture_output(LOGGER.getEffectiveLevel()),
             timeout=max_runtime,
+            check=False,
         )
         return_code = mutant_trial.returncode
 
@@ -409,7 +407,7 @@ def create_mutation_run_trial(
 
 
 def create_mutation_run_parallelcache_trial(
-    genome: Genome, target_idx: LocIndex, mutation_op: Any, test_cmds: List[str], max_runtime: float
+    genome: Genome, target_idx: LocIndex, mutation_op: Any, test_cmds: list[str], max_runtime: float
 ) -> MutantTrialResult:
     """Similar to run.create_mutation_run_trial() but using the parallel cache directory settings.
 
@@ -431,9 +429,6 @@ def create_mutation_run_parallelcache_trial(
         EnvironmentError: if Python version is less than 3.8
     """
 
-    if sys.version_info < (3, 8):
-        raise EnvironmentError("Python 3.8 is required to use PYTHONPYCACHEPREFIX.")
-
     # Note in coverage reports this shows as untested code due to the subprocess dispatching
     # the 'slow' tests in `test_run.py` cover this.
     cache.check_cache_invalidation_mode()
@@ -453,7 +448,9 @@ def create_mutation_run_parallelcache_trial(
     LOGGER.debug("Writing parallel mutant cache file: %s", parallel_cfile)
     cache.create_cache_dirs(parallel_cfile)
     importlib._bootstrap_external._write_atomic(  # type: ignore
-        parallel_cfile, bytecode, mutant.mode,
+        parallel_cfile,
+        bytecode,
+        mutant.mode,
     )
 
     copy_env = os.environ.copy()
@@ -464,6 +461,7 @@ def create_mutation_run_parallelcache_trial(
             env=copy_env,
             capture_output=capture_output(LOGGER.getEffectiveLevel()),
             timeout=max_runtime + MULTI_PROC_TIMEOUT_BUFFER,
+            check=False,
         )
         return_code = mutant_trial.returncode
 
@@ -489,10 +487,10 @@ def create_mutation_run_parallelcache_trial(
 def mutation_sample_dispatch(
     ggrp_target: GenomeGroupTarget,
     ggrp: GenomeGroup,
-    test_cmds: List[str],
+    test_cmds: list[str],
     config: Config,
     trial_runner: TRIAL_RUNNER_TYPE,
-) -> List[MutantTrialResult]:
+) -> list[MutantTrialResult]:
     """Dispatch for the mutant trial.
 
     This is fed either from a loop across GenomeGroupTargets, or through a multi-processing pool
@@ -512,22 +510,21 @@ def mutation_sample_dispatch(
     # Select the valid mutations for the ggrp_target.loc_idx (sample)
     # Then apply the selected mutations in a random order running the test commands
     # until all mutations are tested or the appropriate break-on action occurs
-    results: List[MutantTrialResult] = []
+    results: list[MutantTrialResult] = []
 
     LOGGER.info(
         "Current target location: %s, %s", ggrp_target.source_path.name, ggrp_target.loc_idx
     )
 
     op_code = CATEGORIES[ggrp_target.loc_idx.ast_class]
-    mutant_operations = CategoryCodeFilter(codes=(op_code,)).valid_mutations
+    mutant_operations: set[Any] = CategoryCodeFilter(codes=(op_code,)).valid_mutations
 
     LOGGER.debug("MUTATION OPS: %s", mutant_operations)
     LOGGER.debug("MUTATION: %s", ggrp_target.loc_idx)
     mutant_operations.remove(ggrp_target.loc_idx.op_type)
 
     while mutant_operations:
-        # random.choice doesn't support sets, but sample of 1 produces a list with one element
-        current_mutation = random.sample(mutant_operations, k=1)[0]
+        current_mutation = random.sample(list(mutant_operations), k=1)[0]
         mutant_operations.remove(current_mutation)
 
         trial_results = trial_runner(
@@ -549,7 +546,7 @@ def mutation_sample_dispatch(
     return results
 
 
-def run_mutation_trials(src_loc: Path, test_cmds: List[str], config: Config) -> ResultsSummary:
+def run_mutation_trials(src_loc: Path, test_cmds: list[str], config: Config) -> ResultsSummary:
     """This is the main function for running the mutation trials.
 
     It will cycle through creation of the GenomeGroups from the source location, selecting the
@@ -565,7 +562,7 @@ def run_mutation_trials(src_loc: Path, test_cmds: List[str], config: Config) -> 
     Returns:
         ``ResultsSummary`` object of the mutation trials.
     """
-    start = datetime.now()
+    start = datetime.now(tz=UTC)
 
     # Create a GenomeGroup from the source-location with config flags
     ggrp = get_genome_group(src_loc, config)
@@ -579,10 +576,9 @@ def run_mutation_trials(src_loc: Path, test_cmds: List[str], config: Config) -> 
 
     # Run trials through mutations
     LOGGER.info("Starting individual mutation trials!")
-    results: List[MutantTrialResult] = []
+    results: list[MutantTrialResult] = []
 
-    if sys.version_info >= (3, 8) and config.multi_processing:
-
+    if config.multi_processing:
         LOGGER.info("Running parallel (multi-processor) dispatch mode. CPUs: %s", os.cpu_count())
 
         with multiprocessing.Pool() as pool:
@@ -604,7 +600,6 @@ def run_mutation_trials(src_loc: Path, test_cmds: List[str], config: Config) -> 
         LOGGER.info("Running serial (single processor) dispatch mode.")
 
         for ggrp_target in mutation_sample:
-
             results.extend(
                 mutation_sample_dispatch(
                     ggrp_target=ggrp_target,
@@ -615,7 +610,7 @@ def run_mutation_trials(src_loc: Path, test_cmds: List[str], config: Config) -> 
                 )
             )
 
-    end = datetime.now()
+    end = datetime.now(tz=UTC)
 
     if PARALLEL_PYCACHE_DIR.exists():
         # The subfolders should be deleted as trials proceed making this directory empty

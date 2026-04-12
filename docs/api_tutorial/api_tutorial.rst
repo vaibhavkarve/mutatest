@@ -373,7 +373,7 @@ covered targets to only ``BinOp`` class operations.
     Category:CompareIs, Code: cs
     Category:If, Code: if
     Category:Index, Code: ix
-    Category:NameConstant, Code: nc
+    Category:Constant, Code: ct
     Category:SliceUS, Code: su
 
 
@@ -392,7 +392,7 @@ covered targets to only ``BinOp`` class operations.
 .. parsed-literal::
 
     Invalid category codes: {'asdf'}.
-    Valid codes: {'AugAssign': 'aa', 'BinOp': 'bn', 'BinOpBC': 'bc', 'BinOpBS': 'bs', 'BoolOp': 'bl', 'Compare': 'cp', 'CompareIn': 'cn', 'CompareIs': 'cs', 'If': 'if', 'Index': 'ix', 'NameConstant': 'nc', 'SliceUS': 'su'}
+    Valid codes: {'AugAssign': 'aa', 'BinOp': 'bn', 'BinOpBC': 'bc', 'BinOpBS': 'bs', 'BoolOp': 'bl', 'Compare': 'cp', 'CompareIn': 'cn', 'CompareIs': 'cs', 'If': 'if', 'Index': 'ix', 'Constant': 'ct', 'SliceUS': 'su'}
 
 
 .. code:: ipython3
@@ -547,7 +547,7 @@ Category Code Filter
      'CompareIs': 'cs',
      'If': 'if',
      'Index': 'ix',
-     'NameConstant': 'nc',
+     'Constant': 'ct',
      'SliceUS': 'su'}
 
 

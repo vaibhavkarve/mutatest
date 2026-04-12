@@ -16,7 +16,7 @@ Supported operations:
     - ``Compare Is`` mutations e.g. ``is, is not``.
     - ``If`` mutations e.g. ``If x > y`` becomes ``If True`` or ``If False``.
     - ``Index`` mutations e.g. ``i[0]`` becomes ``i[1]`` and ``i[-1]``.
-    - ``NameConstant`` mutations e.g. ``True``, ``False``, and ``None``.
+    - ``Constant`` mutations e.g. ``True``, ``False``, and ``None``.
     - ``Slice`` mutations e.g. changing ``x[:2]`` to ``x[2:]``.
 
 These are the current operations that are mutated as compatible sets.
@@ -264,10 +264,10 @@ Example:
     x = [a[10], a[-4], a[1]]  # a[0] mutated to Index_NumPos
 
 
-NameConstant - "nc"
+Constant - "ct"
 -------------------
 
-Named constant mutations e.g. ``True, False, None``.
+Constant mutations e.g. ``True, False, None``.
 
 Members:
     - ``False``

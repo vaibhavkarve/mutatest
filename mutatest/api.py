@@ -24,41 +24,36 @@ methods for setting global filters, coverage files, and producing targets of ``L
 across the collection of ``Genomes``. This is a useful representation when dealing with a folder
 of multiple source files.
 """
+
 import ast
 import importlib
 import itertools
 import logging
-
-from collections.abc import MutableMapping
-from copy import deepcopy
-from pathlib import Path
-from typing import (
-    Any,
-    Dict,
+from collections.abc import (
     ItemsView,
     Iterable,
     Iterator,
     KeysView,
     Mapping,
-    NamedTuple,
-    Optional,
-    Set,
-    Union,
+    MutableMapping,
     ValuesView,
+)
+from copy import deepcopy
+from pathlib import Path
+from typing import (
+    Any,
+    NamedTuple,
 )
 
 from mutatest import cache
 from mutatest.filters import CategoryCodeFilter, CoverageFilter
 from mutatest.transformers import CATEGORIES, LocIndex, MutateAST
 
-
 LOGGER = logging.getLogger(__name__)
 
 
 class MutationException(Exception):
     """Mutation Exception type specifically for mismatches in mutation operations."""
-
-    pass
 
 
 class Mutant(NamedTuple):
@@ -117,9 +112,9 @@ class Genome:
 
     def __init__(
         self,
-        source_file: Optional[Union[str, Path]] = None,
-        coverage_file: Optional[Union[str, Path]] = Path(".coverage"),
-        filter_codes: Optional[Iterable[str]] = None,
+        source_file: str | Path | None = None,
+        coverage_file: str | Path | None = Path(".coverage"),
+        filter_codes: Iterable[str] | None = None,
     ) -> None:
         """Initialize the Genome.
 
@@ -136,28 +131,28 @@ class Genome:
         # to be modified directly.
         # Related to source files, AST, targets
         self._source_file = None
-        self._ast: Optional[ast.Module] = None
-        self._targets: Optional[Set[LocIndex]] = None
+        self._ast: ast.Module | None = None
+        self._targets: set[LocIndex] | None = None
 
         # Related to coverage filtering
         self._coverage_file = None
-        self._covered_targets: Optional[Set[LocIndex]] = None
+        self._covered_targets: set[LocIndex] | None = None
 
         # Related to category code filtering, not cached but uses a setter for valid value checks
-        self._filter_codes: Set[str] = set()
+        self._filter_codes: set[str] = set()
 
         # Initialize set values using properties
         # These may be set later and clear the cached values in the setters
         self.source_file = Path(source_file) if source_file else None
         self.coverage_file = Path(coverage_file) if coverage_file else None
-        self.filter_codes: Set[str] = set(filter_codes) if filter_codes else set()
+        self.filter_codes: set[str] = set(filter_codes) if filter_codes else set()
 
     ################################################################################################
     # CATEGORY FILTER CODES PROPERTIES
     ################################################################################################
 
     @property
-    def filter_codes(self) -> Set[str]:
+    def filter_codes(self) -> set[str]:
         """Filter codes applied to targets and covered targets."""
         return self._filter_codes
 
@@ -188,7 +183,7 @@ class Genome:
     ################################################################################################
 
     @property
-    def source_file(self) -> Optional[Path]:
+    def source_file(self) -> Path | None:
         """The source .py file represented by this Genome.
 
         Returns:
@@ -197,14 +192,14 @@ class Genome:
         return self._source_file
 
     @source_file.setter
-    def source_file(self, value: Optional[Union[str, Path]]) -> None:
+    def source_file(self, value: str | Path | None) -> None:
         """Setter for the source_file that clears the AST and targets for recalculation."""
         self._source_file = Path(value) if value else None
         self._ast = None
         self._targets = None
 
     @property
-    def ast(self) -> ast.Module:  # type: ignore
+    def ast(self) -> ast.Module:
         """Abstract Syntax Tree (AST) representation of the source_file.
 
         This is cached locally and updated if the source_file is changed.
@@ -224,7 +219,7 @@ class Genome:
         return self._ast
 
     @property
-    def targets(self) -> Set[LocIndex]:
+    def targets(self) -> set[LocIndex]:
         """Viable mutation targets within the AST of the ``source_file``.
 
         This is cached locally and updated if the source_file is changed. Filtering is not
@@ -248,18 +243,18 @@ class Genome:
     ################################################################################################
 
     @property
-    def coverage_file(self) -> Optional[Path]:
+    def coverage_file(self) -> Path | None:
         """The .coverage file to use for filtering targets."""
         return self._coverage_file
 
     @coverage_file.setter
-    def coverage_file(self, value: Optional[Union[str, Path]]) -> None:
+    def coverage_file(self, value: str | Path | None) -> None:
         """Setter for ``coverage_file``, clears the cached ``covered_targets``."""
         self._coverage_file = Path(value) if value else None
         self._covered_targets = None
 
     @property
-    def covered_targets(self) -> Set[LocIndex]:
+    def covered_targets(self) -> set[LocIndex]:
         """Targets that are marked as covered based on the ``coverage_file``.
 
         This is cached locally and updated if the coverage_file is changed. Filtering is not
@@ -359,11 +354,10 @@ class GenomeGroupTarget(NamedTuple):
     loc_idx: LocIndex
 
 
-class GenomeGroup(MutableMapping):  # type: ignore
-    """The GenomeGroup: a MutableMapping of Genomes for operations on the group.
-    """
+class GenomeGroup(MutableMapping):
+    """The GenomeGroup: a MutableMapping of Genomes for operations on the group."""
 
-    def __init__(self, source_location: Optional[Union[str, Path]] = None) -> None:
+    def __init__(self, source_location: str | Path | None = None) -> None:
         """Initialize the GenomeGroup.
 
         GenomeGroup is a MutableMapping collection of Genomes with defined ``source_file``
@@ -377,7 +371,7 @@ class GenomeGroup(MutableMapping):  # type: ignore
         """
 
         # internal mapping for Genomes, not designed for direct modification, use class properties
-        self._store: Dict[Path, Genome] = dict()
+        self._store: dict[Path, Genome] = {}
 
         if source_location is not None:
             source_location = Path(source_location)
@@ -459,8 +453,8 @@ class GenomeGroup(MutableMapping):  # type: ignore
 
     def add_file(
         self,
-        source_file: Union[str, Path],
-        coverage_file: Optional[Union[str, Path]] = Path(".coverage"),
+        source_file: str | Path,
+        coverage_file: str | Path | None = Path(".coverage"),
     ) -> None:
         """Add a ``.py`` source file to the group as a new Genome.
         The Genome is created automatically.
@@ -476,8 +470,8 @@ class GenomeGroup(MutableMapping):  # type: ignore
 
     def add_folder(
         self,
-        source_folder: Union[str, Path],
-        exclude_files: Optional[Iterable[Union[str, Path]]] = None,
+        source_folder: str | Path,
+        exclude_files: Iterable[str | Path] | None = None,
         ignore_test_files: bool = True,
     ) -> None:
         """Add a folder (recursively) to the GenomeGroup for all ``.py`` files.
@@ -516,10 +510,10 @@ class GenomeGroup(MutableMapping):  # type: ignore
         Returns:
             None
         """
-        for k, v in self.items():
+        for v in self.values():
             v.filter_codes = set(filter_codes)
 
-    def set_coverage(self, coverage_file: Union[str, Path]) -> None:
+    def set_coverage(self, coverage_file: str | Path) -> None:
         """Set a common coverage file for all Genomes in the group.
 
         Args:
@@ -528,11 +522,11 @@ class GenomeGroup(MutableMapping):  # type: ignore
         Returns:
             None
         """
-        for k, v in self.items():
+        for v in self.values():
             v.coverage_file = Path(coverage_file)
 
     @property
-    def targets(self) -> Set[GenomeGroupTarget]:
+    def targets(self) -> set[GenomeGroupTarget]:
         """All mutation targets in the group, returned as tuples of ``source_file`` and location
         indices in a single set.
 
@@ -546,7 +540,7 @@ class GenomeGroup(MutableMapping):  # type: ignore
         return {GenomeGroupTarget(*t) for t in targets}
 
     @property
-    def covered_targets(self) -> Set[GenomeGroupTarget]:
+    def covered_targets(self) -> set[GenomeGroupTarget]:
         """All mutation targets in the group that are covered,
         returned as tuples of ``source_file`` and location indices in a single set.
 

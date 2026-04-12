@@ -1,15 +1,14 @@
-"""Test configuration, large and shared fixtures.
-"""
+"""Test configuration, large and shared fixtures."""
+
 import ast
 import contextlib
 import sys
-
 from datetime import timedelta
 from io import StringIO
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
-from typing import Dict, List, NamedTuple, Set, Optional
+from typing import NamedTuple
 
 import coverage
 import pytest
@@ -85,7 +84,7 @@ def mock_results_summary(mock_trial_results):
     )
 
 
-def write_cov_file(line_data: Dict[str, List[int]], fname: str) -> None:
+def write_cov_file(line_data: dict[str, list[int]], fname: str) -> None:
     """Write a coverage file supporting both Coverage v4 and v5.
 
     Args:
@@ -115,20 +114,20 @@ def write_cov_file(line_data: Dict[str, List[int]], fname: str) -> None:
 class MockArgs(NamedTuple):
     """Container for mocks of the cli arguments."""
 
-    skip: Optional[List[str]]
-    exclude: Optional[List[str]]
-    mode: Optional[str]
-    nlocations: Optional[int]
-    output: Optional[Path]
-    rseed: Optional[int]
-    src: Optional[Path]
-    testcmds: Optional[List[str]]
-    only: Optional[List[str]]
-    exception: Optional[int]
-    debug: Optional[bool]
-    nocov: Optional[bool]
-    parallel: Optional[bool]
-    timeout_factor: Optional[int]
+    skip: list[str] | None
+    exclude: list[str] | None
+    mode: str | None
+    nlocations: int | None
+    output: Path | None
+    rseed: int | None
+    src: Path | None
+    testcmds: list[str] | None
+    only: list[str] | None
+    exception: int | None
+    debug: bool | None
+    nocov: bool | None
+    parallel: bool | None
+    timeout_factor: int | None
 
 
 @pytest.fixture(scope="session")
@@ -186,7 +185,7 @@ class SourceAndTargets(NamedTuple):
     """Container for use with Coverage Filter mock sets."""
 
     source_file: Path
-    targets: Set[LocIndex]
+    targets: set[LocIndex]
 
 
 @pytest.fixture(scope="session")
@@ -309,13 +308,6 @@ def mock_binop_coverage_file(binop_file, tmp_path_factory):
 def binop_expected_locs():
     """Expected target locations for the binop_file fixture in Python 3.7."""
     # Python 3.7
-    if sys.version_info < (3, 8):
-        return {
-            LocIndex(ast_class="BinOp", lineno=6, col_offset=11, op_type=ast.Add),
-            LocIndex(ast_class="BinOp", lineno=6, col_offset=18, op_type=ast.Sub),
-            LocIndex(ast_class="BinOp", lineno=10, col_offset=11, op_type=ast.Add),
-            LocIndex(ast_class="BinOp", lineno=15, col_offset=11, op_type=ast.Div),
-        }
 
     # Python 3.8
     return {
@@ -399,9 +391,8 @@ def boolop_file(tmp_path_factory):
 @pytest.fixture(scope="session")
 def boolop_expected_loc():
     """Expected location index of the boolop fixture"""
-    # Py 3.7 vs 3.8
-    end_lineno = None if sys.version_info < (3, 8) else 2
-    end_col_offset = None if sys.version_info < (3, 8) else 18
+    end_lineno = 2
+    end_col_offset = 18
     return LocIndex(
         ast_class="BoolOp",
         lineno=2,
@@ -558,12 +549,6 @@ def compare_file(tmp_path_factory):
 def compare_expected_locs():
     """The compare expected locations based on the fixture"""
     # Py 3.7
-    if sys.version_info < (3, 8):
-        return [
-            LocIndex(ast_class="Compare", lineno=2, col_offset=11, op_type=ast.Eq),
-            LocIndex(ast_class="CompareIs", lineno=5, col_offset=11, op_type=ast.Is),
-            LocIndex(ast_class="CompareIn", lineno=8, col_offset=11, op_type=ast.In),
-        ]
     # Py 3.8
     return [
         LocIndex(
@@ -634,13 +619,6 @@ def if_file(tmp_path_factory):
 def if_expected_locs():
     """Expected locations in the if_statement."""
     # Py 3.7
-    if sys.version_info < (3, 8):
-        return [
-            LocIndex(ast_class="If", lineno=2, col_offset=4, op_type="If_Statement"),
-            LocIndex(ast_class="If", lineno=4, col_offset=9, op_type="If_Statement"),
-            LocIndex(ast_class="If", lineno=10, col_offset=4, op_type="If_True"),
-            LocIndex(ast_class="If", lineno=13, col_offset=4, op_type="If_False"),
-        ]
 
     # Py 3.8
     return [
@@ -710,13 +688,6 @@ def index_file(tmp_path_factory):
 def index_expected_locs():
     """The index expected location based on the fixture"""
     # Python 3.7
-    if sys.version_info < (3, 8):
-        return [
-            LocIndex(ast_class="Index", lineno=2, col_offset=20, op_type="Index_NumNeg"),
-            LocIndex(ast_class="Index", lineno=3, col_offset=20, op_type="Index_NumZero"),
-            LocIndex(ast_class="Index", lineno=4, col_offset=20, op_type="Index_NumPos"),
-            LocIndex(ast_class="Index", lineno=4, col_offset=23, op_type="Index_NumPos"),
-        ]
 
     # Python 3.8
     return [
@@ -756,13 +727,13 @@ def index_expected_locs():
 
 
 ####################################################################################################
-# TRANSFORMERS: NAMECONST FIXTURES
+# TRANSFORMERS: CONST FIXTURES
 ####################################################################################################
 
 
 @pytest.fixture(scope="session")
-def nameconst_file(tmp_path_factory):
-    """A simple python file with the nameconst attributes."""
+def const_file(tmp_path_factory):
+    """A simple python file with the const attributes."""
     contents = dedent(
         """\
     MY_CONSTANT = True
@@ -775,7 +746,7 @@ def nameconst_file(tmp_path_factory):
     """
     )
 
-    fn = tmp_path_factory.mktemp("nameconst") / "nameconst.py"
+    fn = tmp_path_factory.mktemp("const") / "const.py"
 
     with open(fn, "w") as output_fn:
         output_fn.write(contents)
@@ -786,21 +757,14 @@ def nameconst_file(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def nameconst_expected_locs():
-    """The nameconst expected location based on the fixture"""
+def const_expected_locs():
+    """The const expected location based on the fixture"""
     # Python 3.7
-    if sys.version_info < (3, 8):
-        return [
-            LocIndex(ast_class="NameConstant", lineno=1, col_offset=14, op_type=True),
-            LocIndex(ast_class="NameConstant", lineno=4, col_offset=25, op_type=False),
-            LocIndex(ast_class="NameConstant", lineno=6, col_offset=22, op_type=False),
-            LocIndex(ast_class="NameConstant", lineno=7, col_offset=22, op_type=None),
-        ]
 
     # Python 3.8
     return [
         LocIndex(
-            ast_class="NameConstant",
+            ast_class="Constant",
             lineno=1,
             col_offset=14,
             op_type=True,
@@ -808,7 +772,7 @@ def nameconst_expected_locs():
             end_col_offset=18,
         ),
         LocIndex(
-            ast_class="NameConstant",
+            ast_class="Constant",
             lineno=4,
             col_offset=25,
             op_type=False,
@@ -816,7 +780,7 @@ def nameconst_expected_locs():
             end_col_offset=30,
         ),
         LocIndex(
-            ast_class="NameConstant",
+            ast_class="Constant",
             lineno=6,
             col_offset=22,
             op_type=False,
@@ -824,7 +788,7 @@ def nameconst_expected_locs():
             end_col_offset=27,
         ),
         LocIndex(
-            ast_class="NameConstant",
+            ast_class="Constant",
             lineno=7,
             col_offset=22,
             op_type=None,

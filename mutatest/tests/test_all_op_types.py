@@ -1,6 +1,7 @@
-from pathlib import Path
-import subprocess
 import shutil
+import subprocess
+from pathlib import Path
+
 import mutatest
 
 HERE = Path(mutatest.__file__).parent / "tests"
@@ -17,4 +18,4 @@ def test_all_op_types(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
 
     cmds = ["mutatest", "-s", "all_op_types.py", "-t", "echo 'fake'", "-n", "500", "-m", "f"]
-    subprocess.run(cmds, capture_output=False)
+    subprocess.run(cmds, capture_output=False, check=True)

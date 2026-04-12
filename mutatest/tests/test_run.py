@@ -1,23 +1,20 @@
-"""Tests for run.
-"""
+"""Tests for run."""
+
 import ast
 import subprocess
 import sys
-
 from datetime import timedelta
 from pathlib import Path
 from subprocess import CompletedProcess
 
-import hypothesis.strategies as st  # type: ignore
+import hypothesis.strategies as st
 import pytest
-
-from hypothesis import assume, given  # type: ignore
+from hypothesis import assume, given
 
 from mutatest import run
 from mutatest.api import Genome, GenomeGroup, GenomeGroupTarget
 from mutatest.run import BaselineTestException, Config, MutantTrialResult
 from mutatest.transformers import LocIndex
-
 
 RETURN_CODE_MAPPINGS = [
     (0, "SURVIVED"),
@@ -31,8 +28,8 @@ RETURN_CODE_MAPPINGS = [
 @pytest.fixture
 def binop_Add_LocIdx():
     """Binop Add LocIdx as a target for mutations."""
-    end_lineno = None if sys.version_info < (3, 8) else 10
-    end_col_offset = None if sys.version_info < (3, 8) else 16
+    end_lineno = 10
+    end_col_offset = 16
     return LocIndex(
         ast_class="BinOp",
         lineno=10,
@@ -53,7 +50,7 @@ def add_five_to_mult_mutant(binop_file, stdoutIO, binop_Add_LocIdx):
 
     # uses the redirection for stdout to capture the value from the final output of binop_file
     with stdoutIO() as s:
-        exec(mutant.mutant_code)
+        exec(mutant.mutant_code)  # noqa: S102  # Okay to use in a test on known code.
         assert int(s.getvalue()) == 25
 
     return mutant
@@ -83,7 +80,7 @@ def test_create_mutation_and_run_trial(
     mutation_op = ast.Mult
 
     tag = sys.implementation.cache_tag
-    expected_cfile = binop_file.parent / "__pycache__" / ".".join([binop_file.stem, tag, "pyc"])
+    expected_cfile = binop_file.parent / "__pycache__" / f"{binop_file.stem}.{tag}.pyc"
 
     def mock_subprocess_run(*args, **kwargs):
         return CompletedProcess(args="pytest", returncode=returncode)
@@ -135,7 +132,7 @@ def test_generate_sample(binop_file, sorted_binop_expected_locs):
     for gt in sample:
         assert gt.source_path == binop_file
 
-    assert list(gt.loc_idx for gt in sample) == sorted_binop_expected_locs
+    assert [gt.loc_idx for gt in sample] == sorted_binop_expected_locs
 
 
 def test_generate_sample_FileNotFoundError(binop_file, sorted_binop_expected_locs):
@@ -144,7 +141,7 @@ def test_generate_sample_FileNotFoundError(binop_file, sorted_binop_expected_loc
     ggrp.set_coverage(coverage_file="somethingbad")
 
     sample = run.get_sample(ggrp, ignore_coverage=False)
-    assert list(gt.loc_idx for gt in sample) == sorted_binop_expected_locs
+    assert [gt.loc_idx for gt in sample] == sorted_binop_expected_locs
 
 
 @pytest.mark.parametrize("popsize, nlocs, nexp", [(3, 1, 1), (3, 2, 2), (3, 5, 3)])
@@ -192,14 +189,14 @@ def test_get_genome_group_folder_and_file(tmp_path):
     # test using a folder including exclusions
     ggrp = run.get_genome_group(src_loc=tmp_path, config=config)
 
-    assert sorted(list(ggrp.keys())) == expected_keys
-    for k, g in ggrp.items():
+    assert sorted(ggrp.keys()) == expected_keys
+    for g in ggrp.values():
         assert g.filter_codes == {"bn", "ix"}
 
     # test using only a file and empty config
     ggrp2 = run.get_genome_group(src_loc=tmp_path / "first.py", config=Config())
-    assert sorted(list(ggrp2.keys())) == [tmp_path / "first.py"]
-    for k, g in ggrp2.items():
+    assert sorted(ggrp2.keys()) == [tmp_path / "first.py"]
+    for g in ggrp2.values():
         assert g.filter_codes == set()
 
 
@@ -238,7 +235,7 @@ VALID_COLORS = ["red", "green", "yellow", "blue"]
 @given(TEXT_STRATEGY, TEXT_STRATEGY)
 def test_colorize_output_invariant_return(o, c):
     """Property:
-        1. Colorized output always returns the unmodified string for invalid entries.
+    1. Colorized output always returns the unmodified string for invalid entries.
     """
     assume(c not in VALID_COLORS)
 
@@ -250,7 +247,7 @@ def test_colorize_output_invariant_return(o, c):
 @given(TEXT_STRATEGY)
 def test_colorize_output_invariant_valid(color, o):
     """Property:
-        1. Valid colorized output start and end with assumed terminal markers.
+    1. Valid colorized output start and end with assumed terminal markers.
     """
     result = run.colorize_output(o, color)
     assert result.startswith("\x1b[")
@@ -288,9 +285,6 @@ def test_run_mutation_trials_good_binop(
         exp_trials: number of expected trials
         single_binop_file_with_good_test: fixture for single op with a good test
     """
-    if sys.version_info < (3, 8) and parallel:
-        pytest.skip("Under version 3.8 will not run parallel tests.")
-
     test_cmds = f"pytest {single_binop_file_with_good_test.test_file.resolve()}".split()
 
     config = Config(
@@ -329,9 +323,6 @@ def test_run_mutation_trials_bad_binop(
         exp_trials: number of expected trials
         single_binop_file_with_good_test: fixture for single op with a good test
     """
-    if sys.version_info < (3, 8) and parallel:
-        pytest.skip("Under version 3.8 will not run parallel tests.")
-
     test_cmds = f"pytest {single_binop_file_with_bad_test.test_file.resolve()}".split()
 
     config = Config(

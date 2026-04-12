@@ -1,15 +1,13 @@
-"""Tests for the cache module.
-"""
+"""Tests for the cache module."""
+
 import os.path
 import sys
-
 from pathlib import Path
-from py_compile import PycInvalidationMode  # type: ignore
+from py_compile import PycInvalidationMode
 
-import hypothesis.strategies as st  # type: ignore
+import hypothesis.strategies as st
 import pytest
-
-from hypothesis import example, given  # type: ignore
+from hypothesis import example, given
 
 from mutatest.cache import (
     check_cache_invalidation_mode,
@@ -17,7 +15,6 @@ from mutatest.cache import (
     get_cache_file_loc,
     remove_existing_cache_files,
 )
-
 
 ####################################################################################################
 # UNIT TESTS
@@ -44,7 +41,7 @@ def test_get_cache_file_loc():
     """Expectation for the pycache results based on system tag."""
     test_file = "first.py"
     tag = sys.implementation.cache_tag
-    expected = Path("__pycache__") / ".".join([Path(test_file).stem, tag, "pyc"])
+    expected = Path("__pycache__") / f"{Path(test_file).stem}.{tag}.pyc"
     result = get_cache_file_loc(test_file)
 
     assert result == expected
@@ -106,7 +103,7 @@ def test_remove_existing_cache_files(tmp_path):
     # structure matches expectation of get_cache_file_loc return
     tag = sys.implementation.cache_tag
     test_cache_path = tmp_path / "__pycache__"
-    test_cache_file = test_cache_path / ".".join([Path(test_file).stem, tag, "pyc"])
+    test_cache_file = test_cache_path / f"{Path(test_file).stem}.{tag}.pyc"
 
     # create the temp dir and tmp cache file
     test_cache_path.mkdir()
@@ -134,7 +131,7 @@ def test_remove_existing_cache_files_from_folder(tmp_path):
         with open(tmp_path / tf, "w") as temp_py:
             temp_py.write("import this")
 
-        test_cache_file = test_cache_path / ".".join([Path(tf).stem, tag, "pyc"])
+        test_cache_file = test_cache_path / f"{Path(tf).stem}.{tag}.pyc"
         test_cache_file.write_bytes(b"temporary bytes")
         test_cache_files.append(test_cache_file)
 
@@ -156,9 +153,9 @@ def test_remove_existing_cache_files_from_folder(tmp_path):
 @example("")
 def test_get_cache_file_loc_invariant(s):
     """Property:
-        1. Calling cache-file with an empty string raises a value-error.
-        2. Returned cache files include __pycache__ as the terminal directory.
-        3. Splitting the returned cache-file stem on the system tag yeids the original file stem.
+    1. Calling cache-file with an empty string raises a value-error.
+    2. Returned cache files include __pycache__ as the terminal directory.
+    3. Splitting the returned cache-file stem on the system tag yeids the original file stem.
     """
     if len(s) == 0:
         with pytest.raises(ValueError):

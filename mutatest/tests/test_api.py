@@ -1,5 +1,4 @@
-"""Tests for the API.
-"""
+"""Tests for the API."""
 
 import ast
 import sys
@@ -8,7 +7,6 @@ import pytest
 
 from mutatest.api import Genome, GenomeGroup, MutationException
 from mutatest.transformers import LocIndex
-
 
 ####################################################################################################
 # GENOME AND MUTANT
@@ -27,8 +25,8 @@ def test_create_mutant_with_cache(binop_file, stdoutIO):
     genome = Genome(source_file=binop_file)
 
     # this target is the add_five() function, changing add to mult
-    end_lineno = None if sys.version_info < (3, 8) else 10
-    end_col_offset = None if sys.version_info < (3, 8) else 16
+    end_lineno = 10
+    end_col_offset = 16
 
     target_idx = LocIndex(
         ast_class="BinOp",
@@ -44,11 +42,11 @@ def test_create_mutant_with_cache(binop_file, stdoutIO):
 
     # uses the redirection for stdout to capture the value from the final output of binop_file
     with stdoutIO() as s:
-        exec(mutant.mutant_code)
+        exec(mutant.mutant_code)  # noqa: S102  # Okay to use in a test on known code.
         assert int(s.getvalue()) == 25
 
     tag = sys.implementation.cache_tag
-    expected_cfile = binop_file.parent / "__pycache__" / ".".join([binop_file.stem, tag, "pyc"])
+    expected_cfile = binop_file.parent / "__pycache__" / f"{binop_file.stem}.{tag}.pyc"
 
     assert mutant.src_file == binop_file
     assert mutant.cfile == expected_cfile
@@ -152,9 +150,10 @@ def test_init_GenomeGroup_from_flat_folder(tmp_path):
             temp_py.write("import this")
 
     ggrp = GenomeGroup(tmp_path)
-    assert sorted([g.name for g in ggrp.keys()]) == sorted(expected)
+    assert sorted([g.name for g in ggrp]) == sorted(expected)
 
-    for k, v in ggrp.items():
+    for v in ggrp.values():
+        assert v.source_file is not None
         assert v.source_file.name in expected
 
 
@@ -180,9 +179,10 @@ def test_init_GenomeGroup_from_recursive_folder(tmp_path):
             temp_py.write("import this")
 
     ggrp = GenomeGroup(tmp_path)
-    assert sorted([g.name for g in ggrp.keys()]) == sorted(expected)
+    assert sorted([g.name for g in ggrp]) == sorted(expected)
 
-    for k, v in ggrp.items():
+    for v in ggrp.values():
+        assert v.source_file is not None
         assert v.source_file.name in expected
 
 
@@ -190,7 +190,7 @@ def test_init_GenomeGroup_from_single_file(binop_file):
     """Initialize the GenomgGroup from a single file. This tests Genome as well."""
     ggrp = GenomeGroup(binop_file)
     assert len(ggrp.keys()) == 1
-    assert list(ggrp.keys())[0].resolve() == binop_file.resolve()
+    assert next(iter(ggrp.keys())).resolve() == binop_file.resolve()
 
 
 def test_init_GenomeGroup_raise_TypeError():
@@ -249,7 +249,7 @@ def test_GenomeGroup_add_folder_with_exclusions(tmp_path):
     ggrp.add_folder(tmp_path, exclude_files=exclude)
 
     assert len(ggrp) == 1
-    assert list(ggrp.keys())[0].name == expected
+    assert next(iter(ggrp.keys())).name == expected
 
 
 @pytest.mark.coverage

@@ -2,16 +2,14 @@
 
 These tests rely heavily on fixtures defined in conftest.py.
 """
-import ast
-import sys
 
+import ast
 from copy import deepcopy
 
 import pytest
 
 from mutatest.api import Genome
 from mutatest.transformers import LocIndex, MutateAST, get_mutations_for_target
-
 
 TEST_BINOPS = {ast.Add, ast.Sub, ast.Div, ast.Mult, ast.Pow, ast.Mod, ast.FloorDiv}
 
@@ -78,9 +76,8 @@ def test_MutateAST_visit_binop_37(binop_file):
     """Read only test to ensure locations are aggregated."""
     tree = Genome(binop_file).ast
 
-    # Py 3.7 vs. Py 3.8
-    end_lineno = None if sys.version_info < (3, 8) else 6
-    end_col_offset = None if sys.version_info < (3, 8) else 17
+    end_lineno = 6
+    end_col_offset = 17
 
     test_idx = LocIndex(
         ast_class="BinOp",
@@ -170,7 +167,7 @@ def test_MutateAST_visit_compare(idx, mut_op, lineno, compare_file, compare_expe
 
 
 def test_MutateAST_visit_if(if_file, if_expected_locs):
-    """Test mutation for nameconst: True, False, None."""
+    """Test mutation for const: True, False, None."""
     tree = Genome(if_file).ast
     test_mutation = "If_True"
 
@@ -183,7 +180,7 @@ def test_MutateAST_visit_if(if_file, if_expected_locs):
     mast = MutateAST(readonly=True)
     mast.visit(mutated_tree)
 
-    # named constants will also be picked up, filter just to if_ operations
+    # constants will also be picked up, filter just to if_ operations
     if_locs = [loc for loc in mast.locs if loc.ast_class == "If"]
     assert len(if_locs) == 4
 
@@ -211,52 +208,13 @@ INDEX_SETS = [
 ]
 
 
-@pytest.mark.parametrize(
-    "i_order, lineno, col_offset, mut",
-    INDEX_SETS,
-    ids=[
-        "NumNeg to NumPos",
-        "NumNeg to NumZero",
-        "NumZero to NumNeg",
-        "NumZero to NumPos",
-        "NumPos to NumNeg",
-        "NumPos to NumZero",
-    ],
-)
-def test_MutateAST_visit_index_neg(
-    i_order, lineno, col_offset, mut, index_file, index_expected_locs
-):
-    """Test mutation for Index: i[0], i[1], i[-1]."""
-    tree = Genome(index_file).ast
-    test_mutation = mut
-
-    testing_tree = deepcopy(tree)
-    mutated_tree = MutateAST(target_idx=index_expected_locs[i_order], mutation=test_mutation).visit(
-        testing_tree
-    )
-
-    mast = MutateAST(readonly=True)
-    mast.visit(mutated_tree)
-
-    assert len(mast.locs) == 4
-
-    for loc in mast.locs:
-        # spot check on mutation from Index_NumNeg to Index_NumPos
-        if loc.lineno == lineno and loc.col_offset == col_offset:
-            assert loc.op_type == test_mutation
-
-        # spot check on not-mutated location still being None
-        if loc.lineno == 4 and loc.col_offset == 23:
-            assert loc.op_type == "Index_NumPos"
-
-
-def test_MutateAST_visit_nameconst(nameconst_file, nameconst_expected_locs):
-    """Test mutation for nameconst: True, False, None."""
-    tree = Genome(nameconst_file).ast
+def test_MutateAST_visit_const(const_file, const_expected_locs):
+    """Test mutation for const: True, False, None."""
+    tree = Genome(const_file).ast
     test_mutation = False
 
     testing_tree = deepcopy(tree)
-    mutated_tree = MutateAST(target_idx=nameconst_expected_locs[0], mutation=test_mutation).visit(
+    mutated_tree = MutateAST(target_idx=const_expected_locs[0], mutation=test_mutation).visit(
         testing_tree
     )
 
@@ -264,7 +222,7 @@ def test_MutateAST_visit_nameconst(nameconst_file, nameconst_expected_locs):
     mast.visit(mutated_tree)
 
     # if statement is included with this file that will be picked up
-    nc_locs = [loc for loc in mast.locs if loc.ast_class == "NameConstant"]
+    nc_locs = [loc for loc in mast.locs if loc.ast_class == "Constant"]
     assert len(nc_locs) == 4
 
     for loc in nc_locs:
@@ -292,7 +250,6 @@ def test_MutateAST_visit_subscript(slice_file, slice_expected_locs):
     assert len(mast.locs) == len(slice_expected_locs)
 
     for loc in mast.locs:
-
         if loc.lineno == 5 and loc.col_offset == 15:
             assert loc.op_type == test_mutation
 

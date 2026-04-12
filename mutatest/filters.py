@@ -16,18 +16,18 @@ mutation categories.
 Both of these filters are implemented in ``Genome`` and ``GenomeGroup`` for basic usage in
 filtering by category code or covered lines.
 """
+
 import itertools
 import logging
-
 from abc import ABC, abstractmethod
+from collections.abc import Iterable, ValuesView
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Set, Union, ValuesView
+from typing import Any
 
-from coverage.data import CoverageData  # type: ignore
+from coverage.data import CoverageData
 
 from mutatest import transformers
 from mutatest.transformers import CATEGORIES, LocIndex
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class Filter(ABC):
     """Abstract Base Class for filters, interface should include a filter method."""
 
     @abstractmethod
-    def filter(self, loc_idxs: Set[LocIndex], invert: bool = False) -> Set[LocIndex]:
+    def filter(self, loc_idxs: set[LocIndex], invert: bool = False) -> set[LocIndex]:
         """General filter method that should return a location index set.
 
         A filter should take a set of location indices (``loc_idxs``) and return
@@ -60,14 +60,14 @@ class Filter(ABC):
 class CoverageFilter(Filter):
     """Filter for covered lines to be applied to mutation targets in Genome."""
 
-    def __init__(self, coverage_file: Union[str, Path] = Path(".coverage")) -> None:
+    def __init__(self, coverage_file: str | Path = Path(".coverage")) -> None:
         """Initialize the filter.
 
         Args:
             coverage_file: an optional coverage file, a default ".coverage" is used.
         """
         self._coverage_file = Path(coverage_file)
-        self._coverage_data: Optional[CoverageData] = None
+        self._coverage_data: CoverageData | None = None
 
     @property
     def coverage_file(self) -> Path:
@@ -79,7 +79,7 @@ class CoverageFilter(Filter):
         return self._coverage_file
 
     @coverage_file.setter
-    def coverage_file(self, value: Union[str, Path]) -> None:
+    def coverage_file(self, value: str | Path) -> None:
         """Setter for the coverage file, clears local cache of CoverageData.
 
         Args:
@@ -110,27 +110,18 @@ class CoverageFilter(Filter):
             )
 
         if self._coverage_data is None:
-
-            try:
-                # Coverage v 4.5.4
-                # https://coverage.readthedocs.io/en/coverage-4.5.4/api_coveragedata.html#coverage.CoverageData.read_file
-                self._coverage_data = CoverageData()
-                self._coverage_data.read_file(self.coverage_file)
-            except AttributeError:
-                # Coverage v 5.0.0
-                # https://coverage.readthedocs.io/en/coverage-5.0/api_coveragedata.html#coverage.CoverageData.read
-                self._coverage_data = CoverageData(basename=str(self.coverage_file.resolve()))
-                self._coverage_data.read()
+            self._coverage_data = CoverageData(basename=str(self.coverage_file.resolve()))
+            self._coverage_data.read()
 
         return self._coverage_data
 
     def filter(  # type: ignore
         self,
-        loc_idxs: Set[LocIndex],
-        source_file: Union[str, Path],
+        loc_idxs: set[LocIndex],
+        source_file: str | Path,
         invert: bool = False,
         resolve_source: bool = True,
-    ) -> Set[LocIndex]:
+    ) -> set[LocIndex]:
         """Filter based on coverage measured file.
 
         This adds the source_file argument to the filter abstract method because the coverage
@@ -151,7 +142,7 @@ class CoverageFilter(Filter):
         """
         measured_file = str(Path(source_file).resolve()) if resolve_source else str(source_file)
 
-        covered_lines = self.coverage_data.lines(measured_file) or list()
+        covered_lines = self.coverage_data.lines(measured_file) or []
 
         if invert:
             return {loc for loc in loc_idxs if loc.lineno not in covered_lines}
@@ -161,7 +152,7 @@ class CoverageFilter(Filter):
 class CategoryCodeFilter(Filter):
     """Filter by mutation category code."""
 
-    def __init__(self, codes: Optional[Iterable[str]] = None):
+    def __init__(self, codes: Iterable[str] | None = None):
         """Initialize the filter.
 
         Args:
@@ -174,13 +165,13 @@ class CategoryCodeFilter(Filter):
         """
         # managed by class properties, no direct setters
         self._valid_categories = CATEGORIES  # defined in transformers.py
-        self._codes: Set[str] = set()
+        self._codes: set[str] = set()
 
         # initialize through properties
         self.codes = set(codes) if codes else set()
 
     @property
-    def valid_categories(self) -> Dict[str, str]:
+    def valid_categories(self) -> dict[str, str]:
         """All valid categories with descriptive name and 2 letter code.
 
         Returns:
@@ -198,7 +189,7 @@ class CategoryCodeFilter(Filter):
         return self._valid_categories.values()
 
     @property
-    def codes(self) -> Set[str]:
+    def codes(self) -> set[str]:
         """Getter for the codes set for filtering purposes.
 
         Returns:
@@ -221,7 +212,7 @@ class CategoryCodeFilter(Filter):
         self._codes = {v for v in value if v in self.valid_codes}
 
     @property
-    def valid_mutations(self) -> Set[Any]:
+    def valid_mutations(self) -> set[Any]:
         """Valid mutations for the set of category codes.
 
         Returns:
@@ -266,7 +257,7 @@ class CategoryCodeFilter(Filter):
         """
         self._codes.discard(code)
 
-    def filter(self, loc_idxs: Set[LocIndex], invert: bool = False) -> Set[LocIndex]:
+    def filter(self, loc_idxs: set[LocIndex], invert: bool = False) -> set[LocIndex]:
         """Filter a set of location indices based on the set codes.
 
         If the codes property is an empty set, the ``loc_idxs`` is returned unmodified.

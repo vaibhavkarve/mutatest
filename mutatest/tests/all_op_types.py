@@ -1,12 +1,11 @@
-"""All op types for integration testing.
-"""
+"""All op types for integration testing."""
 
 # flake8: noqa
 
 
 def binop_types():
     x = 100 + 1 - 80 / 10 * 2
-    y = 5 ** 6
+    y = 5**6
     z = 10 % 3 // 4
 
 
