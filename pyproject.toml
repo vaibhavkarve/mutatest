@@ -34,7 +34,7 @@ classifiers = [
     "Topic :: Software Development :: Testing :: Unit",
 ]
 dependencies = [
-  "coverage",
+  "coverage >= 7.13.5",
   "typing-extensions",
 ]
 
@@ -51,7 +51,6 @@ mutatest = "mutatest.cli:cli_main"
 
 [dependency-groups]
 docs = [
-  "coverage>=4.4,<6.0",
   "ipython",
   "sphinx",
   "sphinx_rtd_theme",
@@ -59,7 +58,6 @@ docs = [
 tests = [
   "pytest >= 4.0.0",
   "freezegun",
-  "coverage",
   "pytest-cov",
   "pytest-xdist",
   "tox",
@@ -72,6 +70,7 @@ qa = [
   "pre-commit",
   "isort",
   "pdbp",
+  "dead",
 ]
 build = [
   "setuptools",
@@ -139,3 +138,34 @@ exclude = '''
   | dist
 )/
 '''
+
+
+[tool.ruff]
+exclude = ["**/*.ipynb"]
+line-length = 100
+fix = true
+# Group violations by containing file.
+output-format = "full"
+show-fixes = true
+# Allow imports relative to the "src" and "test" directories.
+src = ["src", "test"]
+unsafe-fixes = true
+
+[tool.ruff.format]
+preview = true
+exclude = []
+
+[tool.ruff.lint]
+exclude = []
+ignore = []
+preview = true
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.src]
+exclude = ["**/*.ipynb"]
+
+[tool.ty.terminal]
+# Error if ty emits any warning-level diagnostics.
+error-on-warning = true

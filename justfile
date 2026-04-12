@@ -6,13 +6,19 @@ list:
 install:
 	uv sync --all-groups
 
+# Run the ruff formatter and linter, fixing everything that is fixable.
 lint:
-	echo "Not yet configured"
+    uv run dead --exclude 'docs/*|_devtools'
+    uv run ruff format
+    uv run ruff check
 
+# Run the ty typechecker.
 typecheck:
-	echo "Not yet configured"
+	uv run ty check
 
-test flags="-v":
+
+# Run the tests.
+test flags = "-v -n logical":
 	uv run pytest {{ flags }}
 
 run:
